@@ -40,15 +40,29 @@
             <!-- Results Grid -->
             <div class="results-section" id="resultsSection">
                 <h2 class="results-title">Sonuçlar</h2>
-                </table>
+                <div class="table-wrapper">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Dosya Adı</th>
+                                <th>Ünvan</th>
+                                <th>Dönem</th>
+                                <th>Tarih Aralığı</th>
+                                <th>Süre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody">
+                            <!-- Results will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📋</div>
+                    <p>Henüz dosya yüklenmedi</p>
+                    <p class="empty-subtext">Excel dosyası yükleyerek başlayın</p>
+                </div>
             </div>
-            <div class="empty-state" id="emptyState">
-                <div class="empty-icon">📋</div>
-                <p>Henüz dosya yüklenmedi</p>
-                <p class="empty-subtext">Excel dosyası yükleyerek başlayın</p>
-            </div>
-    </div>
-    </main>
+        </main>
     </div>
 
     <script src="app.js"></script>

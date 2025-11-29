@@ -246,11 +246,6 @@ function renderGrid() {
             <td>${escapeHtml(file.period || '')}</td>
             <td>${escapeHtml(file.dateRange || '')}</td>
             <td><span class="badge-time">${file.processingTime}ms</span></td>
-            <td>
-                <button class="delete-button" onclick="deleteFile(${index})">
-                    🗑️ Sil
-                </button>
-            </td>
         `;
 
         resultsBody.appendChild(row);
