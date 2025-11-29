@@ -1,18 +1,15 @@
-// Initialize Web Worker
-let worker = null;
+// State
 let parsedFiles = [];
-let processingStartTime = 0;
-let timerInterval = null;
 
 // DOM Elements
 const uploadArea = document.getElementById('uploadArea');
 const uploadButton = document.getElementById('uploadButton');
 const fileInput = document.getElementById('fileInput');
-const loadingIndicator = document.getElementById('loadingIndicator');
 const resultsSection = document.getElementById('resultsSection');
 const resultsBody = document.getElementById('resultsBody');
 const resultsTable = document.querySelector('.results-table');
 const emptyState = document.getElementById('emptyState');
+const loadingIndicator = document.getElementById('loadingIndicator');
 
 // Web Worker code as a string (inline worker to avoid CORS issues with file://)
 const workerCode = `
@@ -28,57 +25,29 @@ self.addEventListener('message', async (event) => {
         const arrayBuffer = await file.arrayBuffer();
         
         // Parse ONLY the first 5 rows for maximum speed
-        // This is much faster than parsing the entire file
         const workbook = XLSX.read(arrayBuffer, { 
             type: 'array',
-            sheetRows: 5  // Only parse first 5 rows (we need A2, B3, B4)
+            sheetRows: 5
         });
         
         // Get the first sheet
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
         
-        // Get cell A2 (Ünvan)
-        const cellA2 = worksheet['A2'];
-        let title = '';
-        
-        if (cellA2) {
-            // Get the value from A2
-            if (cellA2.t === 'd' || cellA2.t === 'n') {
-                title = cellA2.w || XLSX.SSF.format('dd/MM/yyyy', cellA2.v) || String(cellA2.v || '');
-            } else {
-                title = String(cellA2.v || cellA2.w || '').trim();
+        // Helper to get cell value safely
+        const getCellValue = (cell) => {
+            if (!cell) return '';
+            if (cell.t === 'd' || cell.t === 'n') {
+                return cell.w || XLSX.SSF.format('dd/MM/yyyy', cell.v) || String(cell.v || '');
             }
-        }
-        
-        // Get cell B3 (Dönem)
-        const cellB3 = worksheet['B3'];
-        let period = '';
-        
-        if (cellB3) {
-            // Get the value from B3
-            if (cellB3.t === 'd' || cellB3.t === 'n') {
-                period = cellB3.w || XLSX.SSF.format('dd/MM/yyyy', cellB3.v) || String(cellB3.v || '');
-            } else {
-                period = String(cellB3.v || cellB3.w || '').trim();
-            }
-        }
-        
-        // Get cell B4 (Tarih Aralığı)
-        const cellB4 = worksheet['B4'];
-        let dateRange = '';
-        
-        if (cellB4) {
-            // Get the value from B4
-            if (cellB4.t === 'd' || cellB4.t === 'n') {
-                dateRange = cellB4.w || XLSX.SSF.format('dd/MM/yyyy', cellB4.v) || String(cellB4.v || '');
-            } else {
-                dateRange = String(cellB4.v || cellB4.w || '').trim();
-            }
-        }
+            return String(cell.v || cell.w || '').trim();
+        };
+
+        const title = getCellValue(worksheet['A2']);
+        const period = getCellValue(worksheet['B3']);
+        const dateRange = getCellValue(worksheet['B4']);
         
         // Send success message back to main thread
-        // No validation - just send whatever is in the cells
         self.postMessage({
             success: true,
             data: {
@@ -90,7 +59,6 @@ self.addEventListener('message', async (event) => {
         });
         
     } catch (error) {
-        // Send error message back to main thread
         self.postMessage({
             success: false,
             error: error.message || 'Excel dosyası işlenirken bir hata oluştu'
@@ -99,38 +67,13 @@ self.addEventListener('message', async (event) => {
 });
 `;
 
-// Initialize Web Worker
-function initWorker() {
-    if (!worker) {
-        // Create a Blob from the worker code
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
+// Create a Blob from the worker code once
+const workerBlob = new Blob([workerCode], { type: 'application/javascript' });
+const workerUrl = URL.createObjectURL(workerBlob);
 
-        // Create worker from Blob URL
-        worker = new Worker(workerUrl);
-
-        worker.addEventListener('message', (event) => {
-            const processingTime = Date.now() - processingStartTime;
-            hideLoading();
-
-            if (event.data.success) {
-                // Add processing time to data
-                const resultData = {
-                    ...event.data.data,
-                    processingTime: processingTime
-                };
-                addResultToGrid(resultData);
-                showSuccessNotification(`Dosya başarıyla işlendi! (${processingTime}ms)`);
-            } else {
-                showErrorNotification(event.data.error);
-            }
-        });
-
-        worker.addEventListener('error', (error) => {
-            hideLoading();
-            showErrorNotification('Web Worker hatası: ' + error.message);
-        });
-    }
+// Factory function to create a new worker
+function createWorker() {
+    return new Worker(workerUrl);
 }
 
 // File Upload Handlers
@@ -145,11 +88,9 @@ uploadArea.addEventListener('click', (e) => {
 });
 
 fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        handleFile(file);
+    if (e.target.files.length > 0) {
+        handleFiles(Array.from(e.target.files));
     }
-    // Reset input so the same file can be selected again
     fileInput.value = '';
 });
 
@@ -168,55 +109,119 @@ uploadArea.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadArea.classList.remove('drag-over');
 
-    const file = e.dataTransfer.files[0];
-    if (file) {
-        handleFile(file);
+    if (e.dataTransfer.files.length > 0) {
+        handleFiles(Array.from(e.dataTransfer.files));
     }
 });
 
-// Handle File Processing
-function handleFile(file) {
-    // Validate file type
-    const validTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-        'application/vnd.ms-excel' // .xls
-    ];
+// Handle Multiple Files
+function handleFiles(files) {
+    // Filter valid files
+    const validFiles = files.filter(file => {
+        const isValid = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.type === 'application/vnd.ms-excel' ||
+            file.name.endsWith('.xlsx') ||
+            file.name.endsWith('.xls');
 
-    const isValidType = validTypes.includes(file.type) ||
-        file.name.endsWith('.xlsx') ||
-        file.name.endsWith('.xls');
+        if (!isValid) {
+            showNotification(`${file.name} geçerli bir Excel dosyası değil.`, 'error');
+        }
+        return isValid;
+    });
 
-    if (!isValidType) {
-        showErrorNotification('Lütfen geçerli bir Excel dosyası seçin (.xlsx veya .xls)');
-        return;
-    }
+    if (validFiles.length === 0) return;
 
-    // Show loading
-    showLoading();
+    // Show results section if hidden
+    resultsTable.classList.add('active');
+    emptyState.classList.add('hidden');
 
-    // Start timer
-    processingStartTime = Date.now();
+    // Process each file in parallel
+    validFiles.forEach(processFile);
+}
 
-    // Initialize worker if not already done
-    initWorker();
+// Process Single File
+function processFile(file) {
+    // Create a temporary ID for this file's processing
+    const tempId = Date.now() + Math.random().toString(36).substr(2, 9);
+    const startTime = Date.now();
 
-    // Send file to worker
+    // Add initial row to grid
+    const initialData = {
+        id: tempId,
+        fileName: file.name,
+        title: '...',
+        period: '...',
+        dateRange: '...',
+        processingTime: 'İşleniyor...',
+        status: 'processing'
+    };
+
+    addOrUpdateGridRow(initialData);
+
+    // Create and setup worker
+    const worker = createWorker();
+
+    worker.onmessage = (event) => {
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+
+        if (event.data.success) {
+            const resultData = {
+                id: tempId,
+                ...event.data.data,
+                processingTime: duration,
+                status: 'success'
+            };
+            addOrUpdateGridRow(resultData);
+            showNotification(`${file.name} tamamlandı (${duration}ms)`, 'success');
+        } else {
+            const errorData = {
+                id: tempId,
+                fileName: file.name,
+                title: '-',
+                period: '-',
+                dateRange: '-',
+                processingTime: 'Hata',
+                status: 'error'
+            };
+            addOrUpdateGridRow(errorData);
+            showNotification(`${file.name} hatası: ${event.data.error}`, 'error');
+        }
+
+        // Terminate worker to free resources
+        worker.terminate();
+    };
+
+    worker.onerror = (error) => {
+        const errorData = {
+            id: tempId,
+            fileName: file.name,
+            title: '-',
+            period: '-',
+            dateRange: '-',
+            processingTime: 'Hata',
+            status: 'error'
+        };
+        addOrUpdateGridRow(errorData);
+        showNotification(`${file.name} işlem hatası`, 'error');
+        worker.terminate();
+    };
+
+    // Start processing
     worker.postMessage({
         file: file,
         fileName: file.name
     });
 }
 
-// Add Result to Grid
-function addResultToGrid(data) {
-    // Check if file already exists
-    const existingIndex = parsedFiles.findIndex(f => f.fileName === data.fileName);
+// Add or Update Grid Row
+function addOrUpdateGridRow(data) {
+    // Check if row already exists
+    const existingIndex = parsedFiles.findIndex(f => f.id === data.id);
 
     if (existingIndex !== -1) {
-        // Update existing entry
         parsedFiles[existingIndex] = data;
     } else {
-        // Add new entry
         parsedFiles.push(data);
     }
 
@@ -234,135 +239,58 @@ function renderGrid() {
     resultsTable.classList.add('active');
     emptyState.classList.add('hidden');
 
+    // Clear current body
     resultsBody.innerHTML = '';
 
-    parsedFiles.forEach((file, index) => {
+    // Render all files (newest first)
+    [...parsedFiles].reverse().forEach((file, index) => {
         const row = document.createElement('tr');
-        row.style.setProperty('--row-index', index);
+
+        // Add status class
+        if (file.status === 'processing') row.classList.add('processing-row');
+        if (file.status === 'error') row.classList.add('error-row');
+
+        const timeDisplay = file.status === 'processing'
+            ? '<span class="badge-processing">⏳ İşleniyor...</span>'
+            : (file.status === 'error' ? '❌ Hata' : `<span class="badge-time">${file.processingTime}ms</span>`);
 
         row.innerHTML = `
             <td><strong>${escapeHtml(file.fileName)}</strong></td>
             <td>${escapeHtml(file.title || '')}</td>
             <td>${escapeHtml(file.period || '')}</td>
             <td>${escapeHtml(file.dateRange || '')}</td>
-            <td><span class="badge-time">${file.processingTime}ms</span></td>
+            <td>${timeDisplay}</td>
         `;
 
         resultsBody.appendChild(row);
     });
 }
 
-// Delete File from Grid
-function deleteFile(index) {
-    parsedFiles.splice(index, 1);
-    renderGrid();
-    showSuccessNotification('Dosya silindi');
-}
-
-// Loading State
-function showLoading() {
-    uploadArea.style.display = 'none';
-    loadingIndicator.classList.add('active');
-
-    // Start live timer
-    const timerElement = document.getElementById('processingTimer');
-    timerInterval = setInterval(() => {
-        const elapsed = Date.now() - processingStartTime;
-        timerElement.textContent = `${elapsed}ms`;
-    }, 10); // Update every 10ms for smooth counting
-}
-
-function hideLoading() {
-    uploadArea.style.display = 'block';
-    loadingIndicator.classList.remove('active');
-
-    // Stop live timer
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-    }
-}
-
 // Notifications
-function showSuccessNotification(message) {
-    showNotification(message, 'success');
-}
-
-function showErrorNotification(message) {
-    showNotification(message, 'error');
-}
-
 function showNotification(message, type = 'info') {
-    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
 
-    // Add styles
-    Object.assign(notification.style, {
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        padding: '1rem 1.5rem',
-        borderRadius: '12px',
-        color: 'white',
-        fontWeight: '500',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-        zIndex: '1000',
-        animation: 'slideInRight 0.3s ease',
-        maxWidth: '400px',
-        backdropFilter: 'blur(10px)'
-    });
-
-    if (type === 'success') {
-        notification.style.background = 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)';
-    } else if (type === 'error') {
-        notification.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
-    } else {
-        notification.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-    }
-
     document.body.appendChild(notification);
 
-    // Add slide in animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideInRight {
-            from {
-                opacity: 0;
-                transform: translateX(100px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-    `;
-    document.head.appendChild(style);
+    // Trigger animation
+    setTimeout(() => notification.classList.add('show'), 10);
 
     // Remove after 3 seconds
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.3s ease';
-        notification.style.opacity = '0';
-        notification.style.transform = 'translateX(100px)';
-        setTimeout(() => {
-            notification.remove();
-            style.remove();
-        }, 300);
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
     }, 3000);
 }
 
-// Utility Functions
+// Helper to escape HTML
 function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
-
-// Make deleteFile function globally accessible
-window.deleteFile = deleteFile;
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-    renderGrid();
-});

@@ -258,30 +258,6 @@ body::before {
 }
 
 .results-table {
-    width: 100%;
-    border-collapse: collapse;
-    display: none;
-}
-
-.results-table.active {
-    display: table;
-}
-
-.results-table thead {
-    background: rgba(102, 126, 234, 0.1);
-}
-
-.results-table th {
-    padding: 1rem;
-    text-align: left;
-    font-weight: 600;
-    color: var(--text-primary);
-    border-bottom: 2px solid var(--border-color);
-}
-
-.results-table td {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
     color: var(--text-secondary);
 }
 
