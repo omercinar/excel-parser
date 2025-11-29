@@ -285,35 +285,6 @@ body::before {
     color: var(--text-secondary);
 }
 
-.results-table tbody tr {
-    transition: all var(--transition-fast);
-    animation: slideIn 0.4s ease backwards;
-}
-
-.results-table tbody tr:hover {
-    background: rgba(102, 126, 234, 0.05);
-}
-
-.results-table tbody tr:nth-child(n) {
-    animation-delay: calc(0.05s * var(--row-index, 0));
-}
-
-.delete-button {
-    background: var(--secondary-gradient);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-sm);
-    font-size: 0.875rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all var(--transition-base);
-}
-
-.delete-button:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
-}
 
 /* Empty State */
 .empty-state {

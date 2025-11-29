@@ -27,8 +27,12 @@ self.addEventListener('message', async (event) => {
         // Read the file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         
-        // Parse the Excel file
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        // Parse ONLY the first 5 rows for maximum speed
+        // This is much faster than parsing the entire file
+        const workbook = XLSX.read(arrayBuffer, { 
+            type: 'array',
+            sheetRows: 5  // Only parse first 5 rows (we need A2, B3, B4)
+        });
         
         // Get the first sheet
         const firstSheetName = workbook.SheetNames[0];
@@ -110,7 +114,12 @@ function initWorker() {
             hideLoading();
 
             if (event.data.success) {
-                addResultToGrid(event.data.data);
+                // Add processing time to data
+                const resultData = {
+                    ...event.data.data,
+                    processingTime: processingTime
+                };
+                addResultToGrid(resultData);
                 showSuccessNotification(`Dosya başarıyla işlendi! (${processingTime}ms)`);
             } else {
                 showErrorNotification(event.data.error);
@@ -236,6 +245,7 @@ function renderGrid() {
             <td>${escapeHtml(file.title || '')}</td>
             <td>${escapeHtml(file.period || '')}</td>
             <td>${escapeHtml(file.dateRange || '')}</td>
+            <td><span class="badge-time">${file.processingTime}ms</span></td>
             <td>
                 <button class="delete-button" onclick="deleteFile(${index})">
                     🗑️ Sil
