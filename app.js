@@ -1,6 +1,8 @@
 // Initialize Web Worker
 let worker = null;
 let parsedFiles = [];
+let processingStartTime = 0;
+let timerInterval = null;
 
 // DOM Elements
 const uploadArea = document.getElementById('uploadArea');
@@ -104,11 +106,12 @@ function initWorker() {
         worker = new Worker(workerUrl);
 
         worker.addEventListener('message', (event) => {
+            const processingTime = Date.now() - processingStartTime;
             hideLoading();
 
             if (event.data.success) {
                 addResultToGrid(event.data.data);
-                showSuccessNotification('Dosya başarıyla işlendi!');
+                showSuccessNotification(`Dosya başarıyla işlendi! (${processingTime}ms)`);
             } else {
                 showErrorNotification(event.data.error);
             }
@@ -182,6 +185,9 @@ function handleFile(file) {
     // Show loading
     showLoading();
 
+    // Start timer
+    processingStartTime = Date.now();
+
     // Initialize worker if not already done
     initWorker();
 
@@ -252,11 +258,24 @@ function deleteFile(index) {
 function showLoading() {
     uploadArea.style.display = 'none';
     loadingIndicator.classList.add('active');
+
+    // Start live timer
+    const timerElement = document.getElementById('processingTimer');
+    timerInterval = setInterval(() => {
+        const elapsed = Date.now() - processingStartTime;
+        timerElement.textContent = `${elapsed}ms`;
+    }, 10); // Update every 10ms for smooth counting
 }
 
 function hideLoading() {
     uploadArea.style.display = 'block';
     loadingIndicator.classList.remove('active');
+
+    // Stop live timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
 }
 
 // Notifications
