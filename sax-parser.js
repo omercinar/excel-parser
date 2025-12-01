@@ -55,8 +55,10 @@ self.addEventListener('message', async (event) => {
             throw new Error('Excel dosyası veya geçerli bir yapı bulunamadı. İçerik: ' + fileList);
         }
 
+
+        // Load XML (browser JSZip doesn't support streaming)
         const xmlText = await sheetEntry.async("string");
-        const parser = sax.parser(true); // strict = true
+        const parser = sax.parser(true);
         
         const targets = ["A2", "B3", "B4"];
         const results = { "A2": "", "B3": "", "B4": "" };
@@ -71,8 +73,6 @@ self.addEventListener('message', async (event) => {
                     currentCell = r;
                 }
             }
-            // Logic from snippet: insideTargetCell && node.name === "v"
-            // Also adding "t" for inlineStr support to be robust
             if (currentCell && (node.name === "v" || node.name === "t")) {
                 readingValue = true;
             }
@@ -91,7 +91,7 @@ self.addEventListener('message', async (event) => {
             if (name === "c") {
                 currentCell = null;
                 
-                // Check if all targets are found
+                // Early exit when all targets found
                 const allFound = targets.every(cell => results[cell] !== "");
                 if (allFound) {
                     throw new Error("StopParsing");
