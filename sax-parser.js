@@ -90,10 +90,22 @@ self.addEventListener('message', async (event) => {
             }
             if (name === "c") {
                 currentCell = null;
+                
+                // Check if all targets are found
+                const allFound = targets.every(cell => results[cell] !== "");
+                if (allFound) {
+                    throw new Error("StopParsing");
+                }
             }
         };
 
-        parser.write(xmlText).close();
+        try {
+            parser.write(xmlText).close();
+        } catch (e) {
+            if (e.message !== "StopParsing") {
+                throw e;
+            }
+        }
 
         self.postMessage({
             success: true,
@@ -167,11 +179,8 @@ function handleFiles(files) {
     const validFiles = files.filter(file => {
         const isValid = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
             file.type === 'application/vnd.ms-excel' ||
-            file.type === 'application/zip' ||
-            file.type === 'application/x-zip-compressed' ||
             file.name.endsWith('.xlsx') ||
-            file.name.endsWith('.xls') ||
-            file.name.endsWith('.zip');
+            file.name.endsWith('.xls');
 
         if (!isValid) {
             showNotification(`${file.name} geçerli bir Excel dosyası değil.`, 'error');
