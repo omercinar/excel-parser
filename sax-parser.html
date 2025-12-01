@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Excel dosyalarını tarayıcıda parse edin ve tarih aralıklarını görüntüleyin">
+    <title>Excel Parser - Sax Parser</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">📊 Excel Parser (Sax)</h1>
+            <p class="subtitle">Excel dosyalarınızı yükleyin ve A2, B3, B4 hücrelerindeki bilgileri görüntüleyin (Sax
+                Yöntemi)</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Upload Area -->
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <h2 class="upload-title">Excel Dosyası Yükle</h2>
+                    <p class="upload-text">Dosyayı buraya sürükleyin veya tıklayarak seçin</p>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls,.zip" class="file-input" multiple>
+                    <button class="upload-button" id="uploadButton">Dosya Seç</button>
+                </div>
+
+                <div class="loading-indicator" id="loadingIndicator">
+                    <!-- Global timer removed as per new design, kept for structure if needed -->
+                </div>
+            </div>
+
+            <!-- Results Grid -->
+            <div class="results-section" id="resultsSection">
+                <h2 class="results-title">Sonuçlar</h2>
+                <div class="table-wrapper">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Dosya Adı</th>
+                                <th>Ünvan</th>
+                                <th>Dönem</th>
+                                <th>Tarih Aralığı</th>
+                                <th>Durum/Süre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody">
+                            <!-- Results will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📋</div>
+                    <p>Henüz dosya yüklenmedi</p>
+                    <p class="empty-subtext">Excel dosyası yükleyerek başlayın</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="sax-parser.js"></script>
+</body>
+
+</html>
