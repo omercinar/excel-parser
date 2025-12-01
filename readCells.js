@@ -62,14 +62,38 @@ async function readCells(xlsxPath) {
         }
         if (name === "c") {
             currentCell = null;
+
+            // Check if all targets are found
+            const allFound = TARGET_CELLS.every(cell => results[cell] !== null);
+            if (allFound) {
+                // Stop processing
+                stream.unpipe(saxStream);
+                saxStream.end();
+                stream.destroy(); // Stop reading the file
+            }
         }
     });
 
     return new Promise((resolve) => {
-        saxStream.on("end", () => {
-            const duration = Date.now() - startTime;
-            resolve({ results, duration });
+        let resolved = false;
+
+        const finish = () => {
+            if (!resolved) {
+                resolved = true;
+                const duration = Date.now() - startTime;
+                resolve({ results, duration });
+            }
+        };
+
+        saxStream.on("end", finish);
+        // In case unpipe/destroy doesn't trigger end immediately or triggers error
+        saxStream.on("error", (e) => {
+            // Ignore errors if we are done
+            if (!resolved) console.warn("Stream error:", e.message);
+            finish();
         });
+        stream.on("close", finish);
+
         stream.pipe(saxStream);
     });
 }
